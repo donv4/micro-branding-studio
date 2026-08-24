@@ -125,27 +125,40 @@ export default function App() {
       ];
 
       for (const target of assetTargets) {
-        // 💡 Fix: Direct native offscreen canvas memory allocation mapping
+        // Allocate native hardware offscreen layout grids matching target dimensions
         const surface = Skia.Surface.Make(target.width, target.height);
-        if (!surface) {
-          throw new Error(`Failed to allocate GPU memory space for target: ${target.name}`);
-        }
+        if (!surface) throw new Error(`Failed to allocate GPU surface for ${target.name}`);
         
         const offscreenCanvas = surface.getCanvas();
 
-        // Clear backdrop and scale the master vector path seamlessly 
+        // Fill background slate backdrop cleanly
         offscreenCanvas.clear(Skia.Color('#020617'));
         
-        const srcRect = Skia.XYWHRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-        const dstRect = Skia.XYWHRect(0, (target.height - target.width) / 2, target.width, target.width);
+        // 💡 THE FIX: Map the full bounds of the snapshot source image array
+        const srcRect = Skia.XYWHRect(0, 0, masterSnapshot.width(), masterSnapshot.height());
         
-        offscreenCanvas.drawImageRect(masterSnapshot, srcRect, dstRect, Skia.Paint());
+        // Compute crisp uniform scale multipliers to expand elements seamlessly
+        let dstRect;
+        if (target.height > target.width) {
+          // For tall Aspect Ratios (Splash Screens): Center the square logo vertically on the canvas
+          const scale = target.width / masterSnapshot.width();
+          const targetHeight = masterSnapshot.height() * scale;
+          const yOffset = (target.height - targetHeight) / 2;
+          dstRect = Skia.XYWHRect(0, yOffset, target.width, targetHeight);
+        } else {
+          // For standard square app icons (1024px, 512px, 48px): Stretch to match the boundaries exactly
+          dstRect = Skia.XYWHRect(0, 0, target.width, target.height);
+        }
+        
+        // Render the image with anti-aliasing interpolation filters enabled to keep lines crisp!
+        const paint = Skia.Paint();
+        paint.setAntiAlias(true);
+        offscreenCanvas.drawImageRect(masterSnapshot, srcRect, dstRect, paint);
 
-        // Encode directly to base64 binary strings natively on the separate pipeline
+        // Encode directly to base64 binary strings natively on separate threads
         const scaledImage = surface.makeImageSnapshot();
         const base64Payload = scaledImage.encodeToBase64(1, 100);
 
-        // Stream the physical file straight out into your chosen storage workspace
         const targetFileUri = await FileSystemLegacy.StorageAccessFramework.createFileAsync(
           permissions.directoryUri,
           target.name,
@@ -156,6 +169,7 @@ export default function App() {
           encoding: FileSystemLegacy.EncodingType.Base64
         });
       }
+
 
       Alert.alert("Assets Created! 🏁", "All 6 strict dimension configuration files generated and written to your folder successfully.");
     } catch (error) {
