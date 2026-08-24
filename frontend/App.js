@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TextInput, StatusBar, ActivityIndicator, Alert, Dimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useSharedValue } from 'react-native-reanimated';
 import { Canvas, Circle, Skia, Path, LinearGradient, vec, Image, useImage, useCanvasRef, Text as SkiaText, matchFont } from '@shopify/react-native-skia';
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 
 const GRADIENT_SCHEMES = {
   indigo: ['#0f172a', '#1e1b4b', '#311042'],
@@ -31,12 +32,10 @@ export default function App() {
   const canvasRef = useCanvasRef();
   const brandingBgImage = useImage("https://picsum.photos");
 
-  // 💡 Fix: Calculate the initial text placement dynamically inside the render loop!
   const computedTextWidth = skiaFont ? skiaFont.measureText(brandingText).width : 0;
   const initialX = (CANVAS_SIZE / 2) - (computedTextWidth / 2);
   const initialY = (CANVAS_SIZE / 2) + 12;
 
-  // Track position shifts smoothly on separate threads
   const translateX = useSharedValue(initialX);
   const translateY = useSharedValue(initialY);
   const contextX = useSharedValue(0);
@@ -52,26 +51,11 @@ export default function App() {
       translateY.value = contextY.value + event.translationY;
     });
 
-  // Automatically reset coordinate center bounds when logo text changes
   React.useEffect(() => {
     const nextWidth = skiaFont ? skiaFont.measureText(brandingText).width : 0;
     translateX.value = (CANVAS_SIZE / 2) - (nextWidth / 2);
     translateY.value = (CANVAS_SIZE / 2) + 12;
   }, [brandingText]);
-
-  // Smooth transform mapping array linked directly to the container layer
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value }
-    ],
-  }));
-
-  const getTextXPosition = () => {
-    if (!skiaFont) return CANVAS_SIZE / 2;
-    const textWidth = skiaFont.measureText(brandingText).width;
-    return (CANVAS_SIZE / 2) - (textWidth / 2);
-  };
 
   const getClipPath = () => {
     const half = CANVAS_SIZE / 2;
@@ -96,7 +80,6 @@ export default function App() {
 
       const data = image.encodeToBase64(1, 100);
       
-      // 1. Send vector packets straight to your active edge worker loop
       const response = await fetch(`http://${LOCAL_BACKEND_IP}:8787/branding/compile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,30 +88,36 @@ export default function App() {
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
       
-      // 2. Read the raw incoming binary stream file array directly from the response packet
       const blob = await response.blob();
       const reader = new FileReader();
       
       reader.onloadend = async () => {
-        const base64Data = reader.result.split(',')[1];
+        let cleanBase64 = reader.result;
+        if (cleanBase64.includes(',')) {
+          cleanBase64 = cleanBase64.split(',')[1]; // Explicitly slice index 1 to grab the raw unheaded body stream
+        }
+
+        // 🖖 Android Victory Step: Invoke the native Storage Access Framework
+        // This will pop up a window asking you to choose a real public folder (like Downloads)
+        const permissions = await FileSystemLegacy.StorageAccessFramework.requestDirectoryPermissionsAsync();
         
-        // 3. Establish a physical, permanent file directory destination path on your phone's storage
-        const localUri = `${FileSystem.documentDirectory}custom-launcher-icon.ico`;
-        
-        // Write the binary stream straight into your phone's physical hardware memory lines
-        await FileSystem.writeAsStringAsync(localUri, base64Data, {
-          encoding: FileSystem.EncodingType.Base64,
+        if (!permissions.granted) {
+          throw new Error("Directory permissions are required to save files to your public storage.");
+        }
+
+        // Create the actual file directly inside your chosen public Android directory path
+        const fileUri = await FileSystemLegacy.StorageAccessFramework.createFileAsync(
+          permissions.directoryUri,
+          'brand-identity.ico',
+          'image/x-icon'
+        );
+
+        // Write the raw compiled base64 data stream straight into the public storage block
+        await FileSystemLegacy.writeAsStringAsync(fileUri, cleanBase64, {
+          encoding: FileSystemLegacy.EncodingType.Base64,
         });
 
-        // 4. Pop open the system share sheet panel tray instantly on your Samsung S20+!
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(localUri, {
-            mimeType: 'image/x-icon',
-            dialogTitle: 'Save Custom App Icon Logo',
-          });
-        } else {
-          Alert.alert("Success 🎉", "Icon saved internally to local document registry paths!");
-        }
+        Alert.alert("Success 🎉", "Icon saved directly to your public files! You are ready to update your apps.");
       };
       
       reader.readAsDataURL(blob);
@@ -141,11 +130,6 @@ export default function App() {
     }
   };
   
-  // 1. Create a clean Reanimated Selector value derived from state
-  const textWidth = skiaFont ? skiaFont.measureText(brandingText).width : 0;
-  const defaultX = (CANVAS_SIZE / 2) - (textWidth / 2);
-  const defaultY = (CANVAS_SIZE / 2) + 12;
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -169,10 +153,9 @@ export default function App() {
                     
                     <Circle cx={CANVAS_SIZE / 2} cy={CANVAS_SIZE / 2} r={32} color="#ffffff" opacity={0.15} />
 
-                    {/* 💡 Fix: Pass the shared value references directly without accessing `.value` during render! */}
                     {skiaFont && (
                       <SkiaText
-                        x={translateX} // Skia listens directly to the animation mutable frame changes
+                        x={translateX}
                         y={translateY}
                         text={brandingText}
                         font={skiaFont}
