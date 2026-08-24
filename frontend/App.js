@@ -4,6 +4,8 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { Canvas, Circle, Skia, Path, LinearGradient, vec, Image, useImage, useCanvasRef, Text as SkiaText, matchFont } from '@shopify/react-native-skia';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const GRADIENT_SCHEMES = {
   indigo: ['#0f172a', '#1e1b4b', '#311042'],
@@ -93,6 +95,8 @@ export default function App() {
       if (!image) throw new Error("Graphics frame not ready.");
 
       const data = image.encodeToBase64(1, 100);
+      
+      // 1. Send vector packets straight to your active edge worker loop
       const response = await fetch(`http://${LOCAL_BACKEND_IP}:8787/branding/compile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +104,35 @@ export default function App() {
       });
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
-      Alert.alert("Success 🎉", "Multi-resolution Windows .ICO configuration compiled smoothly at the edge!");
+      
+      // 2. Read the raw incoming binary stream file array directly from the response packet
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      reader.onloadend = async () => {
+        const base64Data = reader.result.split(',')[1];
+        
+        // 3. Establish a physical, permanent file directory destination path on your phone's storage
+        const localUri = `${FileSystem.documentDirectory}custom-launcher-icon.ico`;
+        
+        // Write the binary stream straight into your phone's physical hardware memory lines
+        await FileSystem.writeAsStringAsync(localUri, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // 4. Pop open the system share sheet panel tray instantly on your Samsung S20+!
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(localUri, {
+            mimeType: 'image/x-icon',
+            dialogTitle: 'Save Custom App Icon Logo',
+          });
+        } else {
+          Alert.alert("Success 🎉", "Icon saved internally to local document registry paths!");
+        }
+      };
+      
+      reader.readAsDataURL(blob);
+
     } catch (error) {
       console.error(error);
       Alert.alert("Compilation Error", error.message);
@@ -108,7 +140,7 @@ export default function App() {
       setIsCompiling(false);
     }
   };
-
+  
   // 1. Create a clean Reanimated Selector value derived from state
   const textWidth = skiaFont ? skiaFont.measureText(brandingText).width : 0;
   const defaultX = (CANVAS_SIZE / 2) - (textWidth / 2);
