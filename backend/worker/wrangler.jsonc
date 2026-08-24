@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "micro-branding-studio-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-23",
+  "routes": [
+    {
+      "pattern": "api.vibezlabs.com",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

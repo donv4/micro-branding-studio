@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Expo / Mobile local caches
+.expo/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Cloudflare Wrangler local build caches
+.wrangler/
+.dev.vars
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
