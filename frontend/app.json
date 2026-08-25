@@ -1,31 +1,34 @@
 {
   "expo": {
-    "name": "micro-branding-studio-frontend",
+    "name": "Micro-Branding Studio",
     "slug": "micro-branding-studio-frontend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-image.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#020617"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.vibezlabs.microbrandingstudio",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#020617"
       }
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-sharing"
-    ]
+    "extra": {
+      "eas": {
+        "projectId": "6132356b-befc-434c-b5f7-6a15f8225e3e"
+      }
+    }
   }
 }

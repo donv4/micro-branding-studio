@@ -15,7 +15,7 @@ const GRADIENT_SCHEMES = {
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window');
 const CANVAS_SIZE = WINDOW_WIDTH * 0.88; 
-const LOCAL_BACKEND_IP = '192.168.100.6'; 
+const LOCAL_BACKEND_IP = '://vibezlabs.com'; 
 
 const fontConfig = { fontFamily: "sans-serif", fontSize: 36, fontStyle: "normal", fontWeight: "bold" };
 const skiaFont = matchFont(fontConfig);
