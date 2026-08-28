@@ -5,6 +5,7 @@ import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-g
 import Animated, { useSharedValue } from 'react-native-reanimated';
 import { Canvas, Circle, Skia, Path, LinearGradient, vec, Image, useImage, useCanvasRef, Text as SkiaText, matchFont } from '@shopify/react-native-skia';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
 
 const GRADIENT_SCHEMES = {
   indigo: ['#0f172a', '#1e1b4b', '#311042'],
@@ -27,6 +28,8 @@ export default function App() {
   const [textColor, setTextColor] = useState('#ffffff');
   const [isCompiling, setIsCompiling] = useState(false);
   const [isGeneratingPack, setIsGeneratingPack] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+
   
   const canvasRef = useCanvasRef();
   const brandingBgImage = useImage("https://picsum.photos");
@@ -66,6 +69,26 @@ export default function App() {
     } else {
       const rect = Skia.XYWHRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
       return Skia.PathBuilder.Make().addRect(rect).build();
+    }
+  };
+
+    const pickImage = async () => {
+    // Ask for camera permissions
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert("Permission Required", "We need camera access to turn photos into logos!");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspectRatio: [1, 1], // Perfect square for logos
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      // Load the image into Skia-compatible format
+      setSelectedImage(result.assets.uri);
     }
   };
 
@@ -198,7 +221,18 @@ export default function App() {
                   <Canvas ref={canvasRef} style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}>
                     <Path path={getClipPath()}>
                       <LinearGradient start={vec(0, 0)} end={vec(CANVAS_SIZE, CANVAS_SIZE)} colors={GRADIENT_SCHEMES[activeGradient]} />
-                      {brandingBgImage && <Image image={brandingBgImage} x={0} y={0} width={CANVAS_SIZE} height={CANVAS_SIZE} fit="cover" />}
+                      
+                      {/* 📸 This will now show your captured photo behind the logo text! */}
+                      {selectedImage ? (
+                        <Image 
+                          image={useImage(selectedImage)} 
+                          x={0} y={0} 
+                          width={CANVAS_SIZE} height={CANVAS_SIZE} 
+                          fit="cover" 
+                        />
+                      ) : (
+                        brandingBgImage && <Image image={brandingBgImage} x={0} y={0} width={CANVAS_SIZE} height={CANVAS_SIZE} fit="cover" />
+                      )}
                     </Path>
                     <Circle cx={CANVAS_SIZE / 2} cy={CANVAS_SIZE / 2} r={32} color="#ffffff" opacity={0.15} />
                     {skiaFont && <SkiaText x={translateX} y={translateY} text={brandingText} font={skiaFont} color={textColor} />}
@@ -256,6 +290,9 @@ export default function App() {
 
             {/* Action Buttons Row Configuration */}
             <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity style={styles.cameraButton} onPress={pickImage}>
+                <Text style={styles.actionButtonText}>📸 TAKE PHOTO</Text>
+              </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.compileButton, isCompiling && styles.disabledButton]} 
                 onPress={handleCompileIcon} 
@@ -280,31 +317,114 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020617' },
-  header: { paddingHorizontal: 24, paddingTop: 10, marginBottom: 5 },
-  title: { fontSize: 26, fontWeight: '800', color: '#f8fafc' },
-  subtitle: { fontSize: 14, fontWeight: '500', color: '#64748b', marginTop: 2 },
-  canvasContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  outerCanvasBounds: { width: CANVAS_SIZE, height: CANVAS_SIZE, backgroundColor: '#020617', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#334155' },
-  gestureCaptureWrapper: { width: CANVAS_SIZE, height: CANVAS_SIZE },
-  controlsCard: { backgroundColor: '#0f172a', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingVertical: 16, borderWidth: 1, borderColor: '#1e293b' },
-  controlLabel: { fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
-  textInput: { backgroundColor: '#1e293b', color: '#f8fafc', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, fontSize: 15, fontWeight: '700', marginBottom: 10, borderWidth: 1, borderColor: '#334155' },
-  metaControlsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, marginBottom: 10 },
-  swatchRow: { flexDirection: 'row', gap: 8 },
-  swatchButton: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: '#334155' },
-  textColorButton: { width: 32, height: 32, borderRadius: 8, borderWidth: 2, borderColor: '#334155' },
-  activeSwatch: { borderColor: '#38bdf8', transform: [{ scale: 1.05 }] },
-  activeTextSwatch: { borderColor: '#ffffff', transform: [{ scale: 1.05 }] },
-  tabsRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-  tabButton: { flex: 1, backgroundColor: '#1e293b', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  activeTabButton: { backgroundColor: '#0369a1' },
-  tabText: { fontSize: 11, fontWeight: '700', color: '#94a3b8' },
-  activeTabText: { color: '#ffffff' },
-  actionButtonsContainer: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  compileButton: { flex: 1, backgroundColor: '#4b5563', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
-  packButton: { flex: 2, backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
-  disabledButton: { backgroundColor: '#374151' },
-  disabledPackButton: { backgroundColor: '#065f46' },
-  actionButtonText: { color: '#ffffff', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }
+  container: { 
+    flex: 1, 
+    backgroundColor: '#020617' 
+  },
+  header: { 
+    paddingHorizontal: 24, 
+    paddingTop: 10, 
+    marginBottom: 5 
+  },
+  title: { 
+    fontSize: 28, 
+    fontWeight: '900', 
+    color: '#f8fafc',
+    letterSpacing: -0.5
+  },
+  subtitle: { 
+    fontSize: 14, 
+    fontWeight: '500', 
+    color: '#6366f1', // Vibrant indigo for the brand accent
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5
+  },
+  canvasContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    marginVertical: 10
+  },
+  outerCanvasBounds: { 
+    width: CANVAS_SIZE, 
+    height: CANVAS_SIZE, 
+    backgroundColor: '#0f172a', 
+    borderRadius: 24, // Softer, more modern corners
+    overflow: 'hidden', 
+    borderWidth: 2, 
+    borderColor: '#1e293b',
+    elevation: 10, // Shadow for Android
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  gestureCaptureWrapper: { 
+    width: CANVAS_SIZE, 
+    height: CANVAS_SIZE 
+  },
+  controlsCard: { 
+    backgroundColor: '#0f172a', 
+    borderTopLeftRadius: 32, 
+    borderTopRightRadius: 32, 
+    paddingHorizontal: 24, 
+    paddingVertical: 24, 
+    borderWidth: 1, 
+    borderColor: '#334155' 
+  },
+  controlLabel: { 
+    fontSize: 12, 
+    fontWeight: '800', 
+    color: '#94a3b8', 
+    textTransform: 'uppercase', 
+    letterSpacing: 1.2, 
+    marginBottom: 10 
+  },
+  textInput: { 
+    backgroundColor: '#1e293b', 
+    color: '#f8fafc', 
+    paddingVertical: 12, 
+    paddingHorizontal: 18, 
+    borderRadius: 12, 
+    fontSize: 16, 
+    fontWeight: '700', 
+    marginBottom: 18, 
+    borderWidth: 1, 
+    borderColor: '#475569' 
+  },
+  actionButtonsContainer: { 
+    flexDirection: 'row', 
+    gap: 10, 
+    marginTop: 10 
+  },
+  // New Indigo Style for the Camera Button
+  cameraButton: { 
+    flex: 1,
+    backgroundColor: '#4f46e5', 
+    paddingVertical: 15, 
+    borderRadius: 14, 
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8
+  },
+  packButton: { 
+    flex: 2, 
+    backgroundColor: '#10b981', 
+    paddingVertical: 15, 
+    borderRadius: 14, 
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  actionButtonText: { 
+    color: '#ffffff', 
+    fontSize: 13, 
+    fontWeight: '900', 
+    letterSpacing: 0.5 
+  },
+  // Swatch styles
+  swatchRow: { flexDirection: 'row', gap: 10 },
+  swatchButton: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: '#334155' },
+  activeSwatch: { borderColor: '#6366f1', transform: [{ scale: 1.1 }] },
 });
